@@ -30,7 +30,12 @@ export function useUndelegate() {
   }, 1000); // 1 second debounce
 
   const { writeContract, data: hash, error: writeError } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({
+  const { 
+    isLoading: isConfirming, 
+    isSuccess: isConfirmed, 
+    isError: isReceiptError,
+    data: receipt 
+  } = useWaitForTransactionReceipt({
     hash,
     pollingInterval: 2000, // Poll every 2 seconds instead of default
   });
@@ -39,22 +44,34 @@ export function useUndelegate() {
   useEffect(() => {
     if (isConfirming) {
       setState(prev => ({ ...prev, isLoading: true }));
-    } else if (isConfirmed) {
-      setState(prev => ({ 
-        ...prev, 
-        isLoading: false, 
-        isSuccess: true, 
-        txHash: hash || null 
-      }));
-    } else if (writeError) {
+    } else if (isConfirmed && receipt) {
+      // Check if transaction was successful by examining the receipt status
+      if (receipt.status === 'success') {
+        setState(prev => ({ 
+          ...prev, 
+          isLoading: false, 
+          isSuccess: true, 
+          txHash: hash || null 
+        }));
+      } else {
+        // Transaction was mined but failed (reverted)
+        setState(prev => ({ 
+          ...prev, 
+          isLoading: false, 
+          isError: true, 
+          error: new Error('Transaction failed: The transaction was reverted'),
+          txHash: hash || null 
+        }));
+      }
+    } else if (isReceiptError || writeError) {
       setState(prev => ({ 
         ...prev, 
         isLoading: false, 
         isError: true, 
-        error: writeError 
+        error: writeError || new Error('Failed to get transaction receipt')
       }));
     }
-  }, [isConfirming, isConfirmed, writeError, hash]);
+  }, [isConfirming, isConfirmed, isReceiptError, writeError, hash, receipt]);
 
   const undelegate = async (amount: string) => {
     if (!address) {

@@ -27,7 +27,12 @@ export function useClaim() {
   }, 1000); // 1 second debounce
 
   const { writeContract, data: hash, error: writeError } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({
+  const { 
+    isLoading: isConfirming, 
+    isSuccess: isConfirmed, 
+    isError: isReceiptError,
+    data: receipt 
+  } = useWaitForTransactionReceipt({
     hash,
     pollingInterval: 2000, // Poll every 2 seconds instead of default
   });
@@ -36,14 +41,28 @@ export function useClaim() {
   useEffect(() => {
     if (isConfirming) {
       setState(prev => ({ ...prev, isLoading: true, error: null }));
-    } else if (isConfirmed) {
-      setState(prev => ({ ...prev, isLoading: false, isSuccess: true }));
-      // Use debounced refetch to prevent excessive RPC calls
-      debouncedRefetch();
-    } else if (writeError) {
-      setState(prev => ({ ...prev, isLoading: false, error: new Error(formatErrorMessage(writeError)) }));
+    } else if (isConfirmed && receipt) {
+      // Check if transaction was successful by examining the receipt status
+      if (receipt.status === 'success') {
+        setState(prev => ({ ...prev, isLoading: false, isSuccess: true }));
+        // Use debounced refetch to prevent excessive RPC calls
+        debouncedRefetch();
+      } else {
+        // Transaction was mined but failed (reverted)
+        setState(prev => ({ 
+          ...prev, 
+          isLoading: false, 
+          error: new Error('Transaction failed: The transaction was reverted')
+        }));
+      }
+    } else if (isReceiptError || writeError) {
+      setState(prev => ({ 
+        ...prev, 
+        isLoading: false, 
+        error: writeError ? new Error(formatErrorMessage(writeError)) : new Error('Failed to get transaction receipt')
+      }));
     }
-  }, [isConfirming, isConfirmed, writeError, debouncedRefetch]);
+  }, [isConfirming, isConfirmed, isReceiptError, writeError, debouncedRefetch, receipt]);
 
   const claim = async () => {
     if (!address) {
