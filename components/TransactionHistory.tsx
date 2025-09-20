@@ -37,7 +37,11 @@ const TransactionHistory = forwardRef<TransactionHistoryRef, TransactionHistoryP
   });
 
   const fetchTransactions = async (page: number = 1) => {
-    if (!address) return;
+    if (!address) {
+      setTransactions([]);
+      setError('Please connect your wallet to view transaction history');
+      return;
+    }
     
     setLoading(true);
     setError(null);

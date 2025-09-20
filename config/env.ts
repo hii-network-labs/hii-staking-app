@@ -7,5 +7,9 @@ export const ENV = {
   OPERATOR_ADDRESS: process.env.NEXT_PUBLIC_OPERATOR_ADDRESS || '0x38D7c621FdB099A0c5b91adBd6B687e5DC6a2Fd5',
   WALLETCONNECT_PROJECT_ID: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || '',
   ETHERSCAN_API_KEY: process.env.ETHERSCAN_API_KEY || '',
+  
+  // APY Calculation Mode Configuration
+  APY_CALCULATION_MODE: process.env.NEXT_PUBLIC_APY_CALCULATION_MODE || 'production', // 'development' or 'production'
+  DEV_BLOCK_NUMBER: process.env.NEXT_PUBLIC_DEV_BLOCK_NUMBER || '439878', // Hardcoded block with known rewards
 } as const;
 

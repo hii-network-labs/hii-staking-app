@@ -82,7 +82,36 @@ export const STAKEHUB_ABI = [
     ],
     "stateMutability": "view",
     "type": "function"
-  }
+  },
+  {
+    "inputs": [],
+    "name": "BREATHE_BLOCK_INTERVAL",
+    "outputs": [
+      {"internalType": "uint256", "name": "", "type": "uint256"}
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    inputs: [
+      { internalType: "address", name: "operatorAddress", type: "address" },
+      { internalType: "uint256", name: "index", type: "uint256" },
+    ],
+    name: "getValidatorRewardRecord",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      { internalType: "address", name: "operatorAddress", type: "address" },
+      { internalType: "uint256", name: "index", type: "uint256" },
+    ],
+    name: "getValidatorTotalPooledBNBRecord",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
 ] as const;
 
 // Stake Credit Contract ABI (for querying staking info)

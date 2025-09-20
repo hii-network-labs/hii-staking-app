@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
-import { useValidatorAPY } from './useValidatorAPY';
-import { usePoolStats } from './usePoolStats';
+import { useRewardEstimationV2 } from './useRewardEstimationV2';
+import { CONTRACT_ADDRESSES } from '../config/contracts';
 
 export interface RewardEstimation {
   daily: string;
@@ -18,80 +18,72 @@ export function useRewardEstimation(
 ): RewardEstimation {
   console.log('💰 useRewardEstimation called with:', { amount, activeTab });
   
-  const { poolStats } = usePoolStats(stakingInfo?.stakingInfo?.creditContractAddress);
-  const { apy: validatorAPY, isLoading: apyLoading, isError: apyError, error: apyErrorMessage } = useValidatorAPY(
-    stakingInfo?.stakingInfo?.operatorAddress
+  // Use the new V2 implementation based on validator records
+  const rewardEstimationV2 = useRewardEstimationV2(
+    CONTRACT_ADDRESSES.OPERATOR,
+    amount
   );
 
-  console.log('📈 APY Data:', { validatorAPY, apyLoading, apyError, apyErrorMessage });
+  console.log('📈 Reward Estimation V2 Data:', rewardEstimationV2);
 
   return useMemo(() => {
     console.log('🔄 Recalculating reward estimation...');
     
-    // Handle APY errors
-    if (apyError && apyErrorMessage) {
-      console.error('❌ APY Error in reward estimation:', apyErrorMessage);
+    // Handle empty amount gracefully (don't show as error)
+    if (!amount || amount.trim() === '') {
+      console.log('📝 No amount entered yet, showing placeholder values');
       return {
         daily: '0',
         weekly: '0',
         monthly: '0',
         yearly: '0',
         apy: 0,
-        error: apyErrorMessage,
+        error: undefined, // Don't show error for empty amount
       };
     }
-
+    
     // Handle loading state
-    if (apyLoading) {
-      console.log('⏳ APY still loading...');
+    if (rewardEstimationV2.isLoading) {
+      console.log('⏳ Reward estimation still loading...');
       return {
         daily: '0',
         weekly: '0',
         monthly: '0',
         yearly: '0',
         apy: 0,
-        error: 'Loading APY data...',
+        error: 'Loading reward data...',
       };
     }
 
-    // Validate amount
-    const stakeAmount = parseFloat(amount);
-    if (!amount || isNaN(stakeAmount) || stakeAmount <= 0) {
-      console.log('⚠️ Invalid stake amount:', amount);
+    // Handle error state (but not for "Amount is required" since we handle that above)
+    if (rewardEstimationV2.error && rewardEstimationV2.error !== 'Amount is required') {
+      console.error('❌ Error in reward estimation:', rewardEstimationV2.error);
       return {
         daily: '0',
         weekly: '0',
         monthly: '0',
         yearly: '0',
-        apy: validatorAPY,
-        error: undefined,
+        apy: 0,
+        error: rewardEstimationV2.error,
       };
     }
 
-    // Calculate rewards using validator APY
-    const dailyRate = validatorAPY / 365 / 100;
-    const dailyReward = stakeAmount * dailyRate;
-    const weeklyReward = dailyReward * 7;
-    const monthlyReward = dailyReward * 30;
-    const yearlyReward = dailyReward * 365;
-
-    console.log('📊 Reward calculations:', {
-      stakeAmount,
-      validatorAPY: validatorAPY + '%',
-      dailyRate,
-      dailyReward,
-      weeklyReward,
-      monthlyReward,
-      yearlyReward
+    // Return the calculated values from V2
+    console.log('📊 Final reward calculations:', {
+      daily: rewardEstimationV2.rewards.daily,
+      weekly: rewardEstimationV2.rewards.weekly,
+      monthly: rewardEstimationV2.rewards.monthly,
+      yearly: rewardEstimationV2.rewards.yearly,
+      apy: rewardEstimationV2.apy + '%',
     });
 
     return {
-      daily: dailyReward.toFixed(6),
-      weekly: weeklyReward.toFixed(6),
-      monthly: monthlyReward.toFixed(6),
-      yearly: yearlyReward.toFixed(6),
-      apy: validatorAPY,
+      daily: rewardEstimationV2.rewards.daily.toFixed(15),
+      weekly: rewardEstimationV2.rewards.weekly.toFixed(15),
+      monthly: rewardEstimationV2.rewards.monthly.toFixed(15),
+      yearly: rewardEstimationV2.rewards.yearly.toFixed(15),
+      apy: rewardEstimationV2.apy,
       error: undefined,
     };
-  }, [amount, validatorAPY, apyLoading, apyError, apyErrorMessage, activeTab]);
+  }, [rewardEstimationV2, activeTab]);
 }

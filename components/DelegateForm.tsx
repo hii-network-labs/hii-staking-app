@@ -8,9 +8,11 @@ import { useUndelegate } from '@/hooks/useUndelegate';
 import { useClaim } from '@/hooks/useClaim';
 import { useStakingInfo } from '@/hooks/useStakingInfo';
 import { useValidation } from '@/hooks/useValidation';
-// import { useRewardEstimation } from '@/hooks/useRewardEstimation'; // Temporarily removed
+import { useRewardEstimation } from '@/hooks/useRewardEstimation';
+import { formatHII } from '@/utils/formatters';
 import { Loader2, ArrowUpCircle, ArrowDownCircle, ExternalLink, AlertCircle, CheckCircle, Clock, TrendingUp } from 'lucide-react';
 import { ConnectWalletButton } from './ConnectWalletButton';
+import { useUnbondRequests } from '@/hooks/useUnbondRequests';
 import { UnbondRequestsDetail } from './UnbondRequestsDetail';
 
 interface DelegateFormProps {
@@ -25,12 +27,19 @@ export function DelegateForm({ onTransactionSuccess }: DelegateFormProps) {
   const { stakingInfo } = useStakingInfo();
   const { validateDelegateAmount, validateUndelegateAmount, validationRules } = useValidation();
   
+  // Initialize unbond requests hook early to load data on page init
+  const { unbondRequests, isLoading: unbondRequestsLoading } = useUnbondRequests(
+    parseInt(stakingInfo?.pendingUnbondRequest || '0'),
+    parseInt(stakingInfo?.claimableUnbondRequest || '0'),
+    stakingInfo?.creditContractAddress || ''
+  );
+  
   const [amount, setAmount] = useState('');
   const [activeTab, setActiveTab] = useState<'delegate' | 'undelegate' | 'claim'>('delegate');
   const [validationError, setValidationError] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
   
-  // const rewardEstimation = useRewardEstimation(amount, stakingInfo, activeTab as 'delegate' | 'undelegate'); // Temporarily removed
+  const rewardEstimation = useRewardEstimation(amount, stakingInfo, activeTab as 'delegate' | 'undelegate');
 
   useEffect(() => {
     setMounted(true);
@@ -138,6 +147,8 @@ export function DelegateForm({ onTransactionSuccess }: DelegateFormProps) {
         <button
           onClick={() => {
             setActiveTab('delegate');
+            setAmount(''); // Clear input
+            setValidationError(null); // Clear validation error
             if (undelegateSuccess) resetUndelegateState();
             if (claimSuccess) resetClaimState();
           }}
@@ -153,6 +164,8 @@ export function DelegateForm({ onTransactionSuccess }: DelegateFormProps) {
         <button
           onClick={() => {
             setActiveTab('undelegate');
+            setAmount(''); // Clear input
+            setValidationError(null); // Clear validation error
             if (delegateSuccess) resetDelegateState();
             if (claimSuccess) resetClaimState();
           }}
@@ -168,6 +181,8 @@ export function DelegateForm({ onTransactionSuccess }: DelegateFormProps) {
         <button
           onClick={() => {
             setActiveTab('claim');
+            setAmount(''); // Clear input
+            setValidationError(null); // Clear validation error
             if (delegateSuccess) resetDelegateState();
             if (undelegateSuccess) resetUndelegateState();
           }}
@@ -192,9 +207,9 @@ export function DelegateForm({ onTransactionSuccess }: DelegateFormProps) {
             <div className="relative">
               <input
                 id="amount"
-                type="number"
-                step="0.01"
-                min="0"
+                type="text"
+                inputMode="decimal"
+                pattern="[0-9]*\.?[0-9]*"
                 value={amount}
                 onChange={(e) => handleAmountChange(e.target.value)}
                 placeholder="Enter amount to stake"
@@ -208,7 +223,10 @@ export function DelegateForm({ onTransactionSuccess }: DelegateFormProps) {
                     const maxAmount = validationRules.maxUnstakeAmount;
                     if (maxAmount > 0n) {
                       const maxAmountStr = formatEther(maxAmount);
-                      handleAmountChange(maxAmountStr);
+                      // Format for input field: use plain number with dots for decimals, no commas
+                      const numValue = parseFloat(maxAmountStr);
+                      const inputFormattedAmount = numValue.toFixed(4);
+                      handleAmountChange(inputFormattedAmount);
                     }
                   }}
                   className="absolute right-3 top-1/2 transform -translate-y-1/2 px-3 py-1.5 text-xs font-semibold text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded-lg transition-all"
@@ -228,6 +246,53 @@ export function DelegateForm({ onTransactionSuccess }: DelegateFormProps) {
                 <Loader2 className="w-4 h-4 animate-spin" />
                 Loading validation rules...
               </p>
+            )}
+            
+            {/* APY and Reward Estimation Display */}
+            {activeTab === 'delegate' && amount && !validationError && (
+              <div className="mt-4 p-4 bg-gradient-to-r from-green-50 to-blue-50 border border-green-200 rounded-lg">
+                <div className="flex items-center gap-2 mb-3">
+                  <TrendingUp className="w-5 h-5 text-green-600" />
+                  <h4 className="text-sm font-semibold text-gray-800">Estimated Rewards</h4>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="text-center">
+                    <div className="text-lg font-bold text-green-700">
+                      {rewardEstimation.apy.toFixed(10)}%
+                    </div>
+                    <div className="text-xs text-gray-600">APY</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-lg font-bold text-blue-700">
+                      {parseFloat(rewardEstimation.yearly).toFixed(15)} HII
+                    </div>
+                    <div className="text-xs text-gray-600">Yearly Rewards</div>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-3 gap-2 mt-3 text-xs">
+                  <div className="text-center p-2 bg-white rounded">
+                    <div className="font-semibold text-gray-700">{parseFloat(rewardEstimation.daily).toFixed(10)}</div>
+                    <div className="text-gray-500">Daily</div>
+                  </div>
+                  <div className="text-center p-2 bg-white rounded">
+                    <div className="font-semibold text-gray-700">{parseFloat(rewardEstimation.weekly).toFixed(8)}</div>
+                    <div className="text-gray-500">Weekly</div>
+                  </div>
+                  <div className="text-center p-2 bg-white rounded">
+                    <div className="font-semibold text-gray-700">{parseFloat(rewardEstimation.monthly).toFixed(8)}</div>
+                    <div className="text-gray-500">Monthly</div>
+                  </div>
+                </div>
+                
+                {rewardEstimation.error && (
+                  <div className="mt-2 text-xs text-orange-600 flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3" />
+                    {rewardEstimation.error}
+                  </div>
+                )}
+              </div>
             )}
           </div>
         )}
