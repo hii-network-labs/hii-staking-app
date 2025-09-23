@@ -6,7 +6,7 @@ import { formatEther } from 'viem';
 import { useDelegate } from '@/hooks/useDelegate';
 import { useUndelegate } from '@/hooks/useUndelegate';
 import { useClaim } from '@/hooks/useClaim';
-import { useStakingInfo } from '@/hooks/useStakingInfo';
+import { useStakingInfoWithAutoRefresh } from '@/hooks/useStakingInfoWithAutoRefresh';
 import { useValidation } from '@/hooks/useValidation';
 import { useRewardEstimation } from '@/hooks/useRewardEstimation';
 import { formatHII } from '@/utils/formatters';
@@ -24,20 +24,23 @@ export function DelegateForm({ onTransactionSuccess }: DelegateFormProps) {
   const { delegate, resetState: resetDelegateState, isLoading: delegateLoading, isSuccess: delegateSuccess, isError: delegateError, error: delegateErrorMsg, txHash: delegateTxHash } = useDelegate();
   const { undelegate, resetState: resetUndelegateState, isLoading: undelegateLoading, isSuccess: undelegateSuccess, isError: undelegateError, error: undelegateErrorMsg, txHash: undelegateTxHash } = useUndelegate();
   const { claim, resetState: resetClaimState, isLoading: claimLoading, isSuccess: claimSuccess, isError: claimError, error: claimErrorMsg, txHash: claimTxHash } = useClaim();
-  const { stakingInfo } = useStakingInfo();
+  const { stakingInfo } = useStakingInfoWithAutoRefresh();
   const { validateDelegateAmount, validateUndelegateAmount, validationRules } = useValidation();
-  
-  // Initialize unbond requests hook early to load data on page init
-  const { unbondRequests, isLoading: unbondRequestsLoading } = useUnbondRequests(
-    parseInt(stakingInfo?.pendingUnbondRequest || '0'),
-    parseInt(stakingInfo?.claimableUnbondRequest || '0'),
-    stakingInfo?.creditContractAddress || ''
-  );
   
   const [amount, setAmount] = useState('');
   const [activeTab, setActiveTab] = useState<'delegate' | 'undelegate' | 'claim'>('delegate');
   const [validationError, setValidationError] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
+  
+  // Initialize unbond requests hook early to load data on page init
+  // Enable auto-refresh only when on claim tab for real-time updates
+  const { unbondRequests, isLoading: unbondRequestsLoading } = useUnbondRequests(
+    parseInt(stakingInfo?.pendingUnbondRequest || '0'),
+    parseInt(stakingInfo?.claimableUnbondRequest || '0'),
+    stakingInfo?.creditContractAddress || '',
+    activeTab === 'claim', // Enable auto-refresh only on claim tab
+    5000 // Refresh every 5 seconds
+  );
   
   const rewardEstimation = useRewardEstimation(amount, stakingInfo, activeTab as 'delegate' | 'undelegate');
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAccount } from 'wagmi';
 import { formatEther } from 'viem';
 
@@ -19,21 +19,47 @@ interface UseUnbondRequestsResult {
   refetch: () => Promise<void>;
 }
 
+interface CacheEntry {
+  data: UnbondRequest[];
+  timestamp: number;
+  key: string;
+}
+
+// Global cache to persist data across component re-renders
+const requestsCache = new Map<string, CacheEntry>();
+const CACHE_DURATION = 30000; // 30 seconds cache duration
+
 export function useUnbondRequests(
   pendingCount: number,
   claimableCount: number,
-  creditContractAddress: string
+  creditContractAddress: string,
+  enableAutoRefresh: boolean = false,
+  refreshInterval: number = 5000
 ): UseUnbondRequestsResult {
   const { address } = useAccount();
   const [unbondRequests, setUnbondRequests] = useState<UnbondRequest[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  const fetchUnbondRequests = useCallback(async () => {
+  const fetchUnbondRequests = useCallback(async (forceRefresh: boolean = false) => {
     if (!creditContractAddress || !address || (pendingCount === 0 && claimableCount === 0)) {
       setUnbondRequests([]);
       setError(null);
       return;
+    }
+
+    // Create cache key based on parameters
+    const cacheKey = `${address}-${creditContractAddress}-${pendingCount}-${claimableCount}`;
+    
+    // Check cache first (unless force refresh is requested)
+    if (!forceRefresh) {
+      const cached = requestsCache.get(cacheKey);
+      if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+        setUnbondRequests(cached.data);
+        setError(null);
+        return;
+      }
     }
 
     setIsLoading(true);
@@ -85,6 +111,13 @@ export function useUnbondRequests(
         }
       }
       
+      // Cache the results
+      requestsCache.set(cacheKey, {
+        data: requests,
+        timestamp: Date.now(),
+        key: cacheKey
+      });
+      
       setUnbondRequests(requests);
     } catch (error) {
       console.error('Error fetching unbond requests:', error);
@@ -95,13 +128,29 @@ export function useUnbondRequests(
   }, [pendingCount, claimableCount, creditContractAddress, address]);
 
   useEffect(() => {
+    // Initial load
     fetchUnbondRequests();
-  }, [fetchUnbondRequests]);
+    
+    // Setup auto-refresh if enabled
+    if (enableAutoRefresh && refreshInterval > 0) {
+      intervalRef.current = setInterval(() => {
+        fetchUnbondRequests(true); // Force refresh for interval updates
+      }, refreshInterval);
+    }
+    
+    // Cleanup interval on unmount or dependency change
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+  }, [fetchUnbondRequests, enableAutoRefresh, refreshInterval]);
 
   return {
     unbondRequests,
     isLoading,
     error,
-    refetch: fetchUnbondRequests,
+    refetch: () => fetchUnbondRequests(true), // Force refresh when manually called
   };
 }
