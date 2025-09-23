@@ -84,11 +84,7 @@ export function UnbondRequestsDetail({
         return (
           <div
             key={index}
-            className={`border rounded-lg p-4 ${
-              isClaimable 
-                ? 'border-green-200 bg-green-50' 
-                : 'border-orange-200 bg-orange-50'
-            }`}
+            className="border border-orange-200 bg-orange-50 rounded-lg p-4"
           >
             <div className="flex items-center justify-between mb-3">
               <h4 className="font-semibold text-gray-900">
